@@ -1,0 +1,72 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Fraunces";
+  src: url("/assets/fonts/Fraunces.woff2") format("woff2");
+  font-weight: 300 900;
+  font-display: swap;
+}
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+
+    /* Cozy earthy palette — warm cream + forest green */
+    --background: 0.96 0.018 85; /* #F4F1E8 warm off-white */
+    --foreground: 0.15 0.005 80; /* #1F1F1F near-black */
+    --card: 1 0 0; /* white */
+    --card-foreground: 0.15 0.005 80;
+    --popover: 1 0 0;
+    --popover-foreground: 0.15 0.005 80;
+
+    --primary: 0.33 0.07 155; /* #2F4A3A deep forest green */
+    --primary-foreground: 0.97 0.01 85;
+
+    --secondary: 0.88 0.04 80; /* #E7D6B9 pale beige */
+    --secondary-foreground: 0.15 0.005 80;
+
+    --muted: 0.93 0.025 85; /* slightly darker cream */
+    --muted-foreground: 0.47 0.02 80; /* #6F6A60 warm gray */
+
+    --accent: 0.84 0.05 85; /* #D9C8A7 sand/tan */
+    --accent-foreground: 0.15 0.005 80;
+
+    --destructive: 0.5 0.15 25; /* #B24A3C muted red */
+    --destructive-foreground: 0.97 0 0;
+
+    --border: 0.9 0.025 85; /* #E5DED1 warm border */
+    --input: 0.9 0.025 85;
+    --ring: 0.33 0.07 155;
+
+    --header-bg: 0.84 0.05 85; /* sand/tan header */
+    --badge-bg: 0.88 0.04 80; /* beige badge */
+    --low-stock: 0.5 0.15 25; /* muted red */
+
+    --chart-1: 0.33 0.07 155;
+    --chart-2: 0.55 0.12 155;
+    --chart-3: 0.7 0.08 155;
+    --chart-4: 0.5 0.15 25;
+    --chart-5: 0.84 0.05 85;
+
+    --sidebar: 0.96 0.018 85;
+    --sidebar-foreground: 0.15 0.005 80;
+    --sidebar-primary: 0.33 0.07 155;
+    --sidebar-primary-foreground: 0.97 0.01 85;
+    --sidebar-accent: 0.84 0.05 85;
+    --sidebar-accent-foreground: 0.15 0.005 80;
+    --sidebar-border: 0.9 0.025 85;
+    --sidebar-ring: 0.33 0.07 155;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Plus Jakarta Sans", sans-serif;
+  }
+}
