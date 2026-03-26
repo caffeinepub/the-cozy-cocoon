@@ -4,13 +4,13 @@ import Float "mo:core/Float";
 import Map "mo:core/Map";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
-import Migration "migration";
+
 import MixinStorage "blob-storage/Mixin";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
 // include data migration function in with-clause
-(with migration = Migration.run)
+
 actor {
   // File Storage System
   include MixinStorage();
@@ -78,12 +78,6 @@ actor {
 
   // --- Authorization Helpers ---
 
-  func requireAdmin(caller : Principal) {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
-      Runtime.trap("Unauthorized: Only admins can perform this action");
-    };
-  };
-
   func requireUser(caller : Principal) {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can perform this action");
@@ -93,7 +87,7 @@ actor {
   // --- Product Management Functions ---
 
   public shared ({ caller }) func addProduct(input : ProductInput) : async Nat {
-    requireAdmin(caller);
+    requireUser(caller);
 
     let product : Product = {
       id = nextProductId;
@@ -121,7 +115,7 @@ actor {
   };
 
   public shared ({ caller }) func toggleProductStatus(productId : Nat) : async () {
-    requireAdmin(caller);
+    requireUser(caller);
 
     switch (products.get(productId)) {
       case (null) { Runtime.trap("Product not found") };
@@ -139,7 +133,7 @@ actor {
   };
 
   public shared ({ caller }) func deleteProduct(productId : Nat) : async () {
-    requireAdmin(caller);
+    requireUser(caller);
 
     if (not products.containsKey(productId)) {
       Runtime.trap("Product not found");
