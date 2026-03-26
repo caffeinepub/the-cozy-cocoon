@@ -7,31 +7,27 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface ProductInfo {
+export interface Product {
     id: bigint;
+    status: ProductStatus;
     name: string;
-    sellingPrice: bigint;
-    quantity: bigint;
-    costPrice: bigint;
+    createdAt: bigint;
+    sellingPrice: number;
+    photoUrl: string;
+    costPrice: number;
 }
 export interface ProductInput {
     name: string;
-    sellingPrice: bigint;
-    quantity: bigint;
-    costPrice: bigint;
-}
-export type Time = bigint;
-export interface SaleInfo {
-    id: bigint;
-    productId: bigint;
-    timestamp: Time;
-    quantity: bigint;
-    profit: bigint;
-    costPrice: bigint;
-    totalPrice: bigint;
+    sellingPrice: number;
+    photoUrl: string;
+    costPrice: number;
 }
 export interface UserProfile {
     name: string;
+}
+export enum ProductStatus {
+    sold = "sold",
+    stock = "stock"
 }
 export enum UserRole {
     admin = "admin",
@@ -39,18 +35,16 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    addProduct(productInput: ProductInput): Promise<bigint>;
+    addProduct(input: ProductInput): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    editProduct(id: bigint, productInput: ProductInput): Promise<void>;
-    getAllProducts(): Promise<Array<ProductInfo>>;
-    getAllSales(): Promise<Array<SaleInfo>>;
+    deleteProduct(productId: bigint): Promise<void>;
+    getAllProducts(): Promise<Array<Product>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
-    getProduct(id: bigint): Promise<ProductInfo>;
-    getProductsByName(searchTerm: string): Promise<Array<ProductInfo>>;
+    getSoldProducts(): Promise<Array<Product>>;
+    getStockProducts(): Promise<Array<Product>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
-    removeProduct(id: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    sellProduct(productId: bigint, quantity: bigint): Promise<bigint>;
+    toggleProductStatus(productId: bigint): Promise<void>;
 }

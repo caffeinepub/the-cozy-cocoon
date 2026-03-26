@@ -1,31 +1,59 @@
-
-import Nat "mo:core/Nat";
 import Text "mo:core/Text";
-import Map "mo:core/Map";
-import Principal "mo:core/Principal";
-import Array "mo:core/Array";
-import Runtime "mo:core/Runtime";
-import Iter "mo:core/Iter";
 import Time "mo:core/Time";
+import Float "mo:core/Float";
+import Map "mo:core/Map";
+import Runtime "mo:core/Runtime";
+import Principal "mo:core/Principal";
+import Migration "migration";
 import MixinStorage "blob-storage/Mixin";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
-
+// include data migration function in with-clause
+(with migration = Migration.run)
 actor {
   // File Storage System
   include MixinStorage();
 
-  // Initialize the access control system
+  // Initialize the user system state
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // User Profile System
+  // --- Data Types ---
+
+  type ProductStatus = {
+    #stock;
+    #sold;
+  };
+
+  type Product = {
+    id : Nat;
+    name : Text;
+    photoUrl : Text;
+    costPrice : Float;
+    sellingPrice : Float;
+    status : ProductStatus;
+    createdAt : Int;
+  };
+
+  type ProductInput = {
+    name : Text;
+    photoUrl : Text;
+    costPrice : Float;
+    sellingPrice : Float;
+  };
+
   public type UserProfile = {
     name : Text;
   };
 
+  // --- State ---
+
+  var nextProductId = 1;
+  let products = Map.empty<Nat, Product>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+
+  // --- User Profile Functions ---
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
@@ -48,210 +76,79 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // Inventory Application Types
-  type Product = {
-    id : Nat;
-    name : Text;
-    quantity : Nat;
-    costPrice : Nat;
-    sellingPrice : Nat;
-    sales : [Sale];
-  };
+  // --- Authorization Helpers ---
 
-  type Sale = {
-    id : Nat;
-    productId : Nat;
-    quantity : Nat;
-    totalPrice : Nat;
-    costPrice : Nat;
-    profit : Nat;
-    timestamp : Time.Time;
-  };
-
-  type ProductInfo = {
-    id : Nat;
-    name : Text;
-    quantity : Nat;
-    costPrice : Nat;
-    sellingPrice : Nat;
-  };
-
-  type SaleInfo = {
-    id : Nat;
-    productId : Nat;
-    quantity : Nat;
-    totalPrice : Nat;
-    costPrice : Nat;
-    profit : Nat;
-    timestamp : Time.Time;
-  };
-
-  type ProductInput = {
-    name : Text;
-    quantity : Nat;
-    costPrice : Nat;
-    sellingPrice : Nat;
-  };
-
-  let productMap = Map.empty<Nat, Product>();
-  let saleMap = Map.empty<Nat, Sale>();
-
-  var productId = 0;
-  var nextSaleId = 1;
-
-  func getProductInternal(id : Nat) : Product {
-    switch (productMap.get(id)) {
-      case (null) { Runtime.trap("Product not found") };
-      case (?product) { product };
+  func requireAdmin(caller : Principal) {
+    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
     };
   };
 
-  func getSaleInternal(id : Nat) : Sale {
-    switch (saleMap.get(id)) {
-      case (null) { Runtime.trap("Sale not found") };
-      case (?sale) { sale };
+  func requireUser(caller : Principal) {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can perform this action");
     };
   };
 
-  public shared ({ caller }) func addProduct(productInput : ProductInput) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can add products");
+  // --- Product Management Functions ---
+
+  public shared ({ caller }) func addProduct(input : ProductInput) : async Nat {
+    requireAdmin(caller);
+
+    let product : Product = {
+      id = nextProductId;
+      name = input.name;
+      photoUrl = input.photoUrl;
+      costPrice = input.costPrice;
+      sellingPrice = input.sellingPrice;
+      status = #stock;
+      createdAt = Time.now();
     };
 
-    if (productInput.name == "") {
-      Runtime.trap("Product name cannot be empty");
-    };
-
-    if (productInput.costPrice > productInput.sellingPrice) {
-      Runtime.trap("Selling price cannot be lower than the cost price");
-    };
-
-    let product = {
-      id = productId;
-      name = productInput.name;
-      quantity = productInput.quantity;
-      costPrice = productInput.costPrice;
-      sellingPrice = productInput.sellingPrice;
-      sales = [];
-    };
-
-    productMap.add(productId, product);
-    productId += 1;
+    products.add(nextProductId, product);
+    nextProductId += 1;
     product.id;
   };
 
-  public shared ({ caller }) func editProduct(id : Nat, productInput : ProductInput) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can edit products");
-    };
-
-    let product = getProductInternal(id);
-
-    let updatedProduct = {
-      id = product.id;
-      name = productInput.name;
-      quantity = productInput.quantity;
-      costPrice = productInput.costPrice;
-      sellingPrice = productInput.sellingPrice;
-      sales = product.sales;
-    };
-
-    productMap.add(id, updatedProduct);
+  public query ({ caller }) func getStockProducts() : async [Product] {
+    requireUser(caller);
+    products.values().toArray().filter(func(p) { p.status == #stock });
   };
 
-  public shared ({ caller }) func removeProduct(id : Nat) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can remove products");
-    };
-
-    ignore getProductInternal(id);
-
-    productMap.remove(id);
+  public query ({ caller }) func getSoldProducts() : async [Product] {
+    requireUser(caller);
+    products.values().toArray().filter(func(p) { p.status == #sold });
   };
 
-  public shared ({ caller }) func sellProduct(productId : Nat, quantity : Nat) : async Nat {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can sell products");
-    };
+  public shared ({ caller }) func toggleProductStatus(productId : Nat) : async () {
+    requireAdmin(caller);
 
-    let product = getProductInternal(productId);
-
-    if (quantity > product.quantity) {
-      Runtime.trap("Not enough quantity in stock");
-    };
-
-    let totalPrice = product.sellingPrice * quantity;
-    let costPrice = product.costPrice * quantity;
-    let profit = totalPrice - costPrice;
-
-    let sale : Sale = {
-      id = nextSaleId;
-      productId;
-      quantity;
-      totalPrice;
-      costPrice;
-      profit;
-      timestamp = Time.now();
-    };
-
-    let updatedProduct = {
-      product with
-      quantity = product.quantity - quantity;
-      sales = product.sales.concat([sale]);
-    };
-
-    productMap.add(productId, updatedProduct);
-
-    saleMap.add(nextSaleId, sale);
-
-    nextSaleId += 1;
-    sale.id;
-  };
-
-  public query ({ caller }) func getProduct(id : Nat) : async ProductInfo {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view products");
-    };
-
-    let product = getProductInternal(id);
-    productToProductInfo(product);
-  };
-
-  public query ({ caller }) func getProductsByName(searchTerm : Text) : async [ProductInfo] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view products");
-    };
-
-    productMap.values().toArray().map(func(product) { productToProductInfo(product) });
-  };
-
-  func productToProductInfo(product : Product) : ProductInfo {
-    {
-      id = product.id;
-      name = product.name;
-      quantity = product.quantity;
-      costPrice = product.costPrice;
-      sellingPrice = product.sellingPrice;
+    switch (products.get(productId)) {
+      case (null) { Runtime.trap("Product not found") };
+      case (?product) {
+        let updatedProduct = {
+          product with
+          status = switch (product.status) {
+            case (#stock) { #sold };
+            case (#sold) { #stock };
+          };
+        };
+        products.add(productId, updatedProduct);
+      };
     };
   };
 
-  public query ({ caller }) func getAllProducts() : async [ProductInfo] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view products");
-    };
+  public shared ({ caller }) func deleteProduct(productId : Nat) : async () {
+    requireAdmin(caller);
 
-    productMap.values().toArray().map(func(product) { productToProductInfo(product) });
+    if (not products.containsKey(productId)) {
+      Runtime.trap("Product not found");
+    };
+    products.remove(productId);
   };
 
-  public query ({ caller }) func getAllSales() : async [SaleInfo] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can view sales");
-    };
-
-    saleMap.values().toArray().map(func(sale) { saleToSaleInfo(sale) });
-  };
-
-  func saleToSaleInfo(sale : Sale) : SaleInfo {
-    sale;
+  public query ({ caller }) func getAllProducts() : async [Product] {
+    requireUser(caller);
+    products.values().toArray();
   };
 };

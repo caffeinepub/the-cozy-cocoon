@@ -1,16 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type {
-  ProductInfo,
-  ProductInput,
-  SaleInfo,
-  UserProfile,
-} from "../backend.d";
+import type { Product, ProductInput, UserProfile } from "../backend.d";
 import { useActor } from "./useActor";
+
+export function useGetStockProducts() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Product[]>({
+    queryKey: ["stock-products"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getStockProducts();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetSoldProducts() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Product[]>({
+    queryKey: ["sold-products"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getSoldProducts();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
 
 export function useGetAllProducts() {
   const { actor, isFetching } = useActor();
-  return useQuery<ProductInfo[]>({
-    queryKey: ["products"],
+  return useQuery<Product[]>({
+    queryKey: ["all-products"],
     queryFn: async () => {
       if (!actor) return [];
       return actor.getAllProducts();
@@ -19,15 +38,51 @@ export function useGetAllProducts() {
   });
 }
 
-export function useGetAllSales() {
-  const { actor, isFetching } = useActor();
-  return useQuery<SaleInfo[]>({
-    queryKey: ["sales"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return actor.getAllSales();
+export function useAddProduct() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ProductInput) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.addProduct(input);
     },
-    enabled: !!actor && !isFetching,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock-products"] });
+      qc.invalidateQueries({ queryKey: ["sold-products"] });
+      qc.invalidateQueries({ queryKey: ["all-products"] });
+    },
+  });
+}
+
+export function useToggleProductStatus() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (productId: bigint) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.toggleProductStatus(productId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock-products"] });
+      qc.invalidateQueries({ queryKey: ["sold-products"] });
+      qc.invalidateQueries({ queryKey: ["all-products"] });
+    },
+  });
+}
+
+export function useDeleteProduct() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (productId: bigint) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.deleteProduct(productId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["stock-products"] });
+      qc.invalidateQueries({ queryKey: ["sold-products"] });
+      qc.invalidateQueries({ queryKey: ["all-products"] });
+    },
   });
 }
 
@@ -47,60 +102,6 @@ export function useGetCallerUserProfile() {
     isLoading: actorFetching || query.isLoading,
     isFetched: !!actor && query.isFetched,
   };
-}
-
-export function useAddProduct() {
-  const { actor } = useActor();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (input: ProductInput) => {
-      if (!actor) throw new Error("No actor");
-      return actor.addProduct(input);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
-  });
-}
-
-export function useEditProduct() {
-  const { actor } = useActor();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ id, input }: { id: bigint; input: ProductInput }) => {
-      if (!actor) throw new Error("No actor");
-      return actor.editProduct(id, input);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
-  });
-}
-
-export function useRemoveProduct() {
-  const { actor } = useActor();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: bigint) => {
-      if (!actor) throw new Error("No actor");
-      return actor.removeProduct(id);
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
-  });
-}
-
-export function useSellProduct() {
-  const { actor } = useActor();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({
-      productId,
-      quantity,
-    }: { productId: bigint; quantity: bigint }) => {
-      if (!actor) throw new Error("No actor");
-      return actor.sellProduct(productId, quantity);
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      qc.invalidateQueries({ queryKey: ["sales"] });
-    },
-  });
 }
 
 export function useSaveCallerUserProfile() {

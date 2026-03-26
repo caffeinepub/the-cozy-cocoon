@@ -10,29 +10,23 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
-export interface ProductInfo {
+export interface Product {
   'id' : bigint,
+  'status' : ProductStatus,
   'name' : string,
-  'sellingPrice' : bigint,
-  'quantity' : bigint,
-  'costPrice' : bigint,
+  'createdAt' : bigint,
+  'sellingPrice' : number,
+  'photoUrl' : string,
+  'costPrice' : number,
 }
 export interface ProductInput {
   'name' : string,
-  'sellingPrice' : bigint,
-  'quantity' : bigint,
-  'costPrice' : bigint,
+  'sellingPrice' : number,
+  'photoUrl' : string,
+  'costPrice' : number,
 }
-export interface SaleInfo {
-  'id' : bigint,
-  'productId' : bigint,
-  'timestamp' : Time,
-  'quantity' : bigint,
-  'profit' : bigint,
-  'costPrice' : bigint,
-  'totalPrice' : bigint,
-}
-export type Time = bigint;
+export type ProductStatus = { 'sold' : null } |
+  { 'stock' : null };
 export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -67,18 +61,16 @@ export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addProduct' : ActorMethod<[ProductInput], bigint>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'editProduct' : ActorMethod<[bigint, ProductInput], undefined>,
-  'getAllProducts' : ActorMethod<[], Array<ProductInfo>>,
-  'getAllSales' : ActorMethod<[], Array<SaleInfo>>,
+  'deleteProduct' : ActorMethod<[bigint], undefined>,
+  'getAllProducts' : ActorMethod<[], Array<Product>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getProduct' : ActorMethod<[bigint], ProductInfo>,
-  'getProductsByName' : ActorMethod<[string], Array<ProductInfo>>,
+  'getSoldProducts' : ActorMethod<[], Array<Product>>,
+  'getStockProducts' : ActorMethod<[], Array<Product>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'removeProduct' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'sellProduct' : ActorMethod<[bigint, bigint], bigint>,
+  'toggleProductStatus' : ActorMethod<[bigint], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

@@ -8,6 +8,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Loader2 } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -28,10 +29,13 @@ export function DeleteConfirmDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="rounded-2xl" data-ocid="delete.dialog">
         <AlertDialogHeader>
-          <AlertDialogTitle>Remove Product</AlertDialogTitle>
+          <AlertDialogTitle>Delete Product?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to remove <strong>{productName}</strong>? This
-            action cannot be undone.
+            Are you sure you want to delete{" "}
+            <span className="font-semibold text-foreground">
+              "{productName}"
+            </span>
+            ? This action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -45,9 +49,12 @@ export function DeleteConfirmDialog({
             data-ocid="delete.confirm_button"
             onClick={onConfirm}
             disabled={isPending}
-            className="bg-destructive text-destructive-foreground rounded-xl hover:bg-destructive/90"
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl"
           >
-            Remove
+            {isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            Delete
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

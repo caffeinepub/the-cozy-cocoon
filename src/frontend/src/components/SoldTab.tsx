@@ -1,188 +1,257 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, IndianRupee, ShoppingBag, TrendingUp } from "lucide-react";
+import {
+  Clock,
+  ImageIcon,
+  RotateCcw,
+  Search,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo } from "react";
-import { useGetAllProducts, useGetAllSales } from "../hooks/useQueries";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import type { Product } from "../backend.d";
+import {
+  useDeleteProduct,
+  useGetSoldProducts,
+  useToggleProductStatus,
+} from "../hooks/useQueries";
+import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 
 const SKELETON_IDS = ["sk1", "sk2", "sk3", "sk4", "sk5"];
 
-function fmt(cents: bigint) {
-  return `₹${(Number(cents) / 100).toFixed(2)}`;
+function formatRupees(val: number) {
+  return `₹${val.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
-function fmtDate(ns: bigint) {
-  return new Date(Number(ns) / 1_000_000).toLocaleString();
+function formatDate(ns: bigint) {
+  return new Date(Number(ns) / 1_000_000).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export function SoldTab() {
-  const { data: sales = [], isLoading } = useGetAllSales();
-  const { data: products = [] } = useGetAllProducts();
+  const { data: products = [], isLoading } = useGetSoldProducts();
+  const toggleStatus = useToggleProductStatus();
+  const deleteProduct = useDeleteProduct();
 
-  const productMap = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const p of products) m.set(String(p.id), p.name);
-    return m;
-  }, [products]);
+  const [search, setSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return q
+      ? products.filter((p) => p.name.toLowerCase().includes(q))
+      : products;
+  }, [products, search]);
 
   const totalRevenue = useMemo(
-    () => sales.reduce((s, sale) => s + sale.totalPrice, 0n),
-    [sales],
+    () => products.reduce((s, p) => s + p.sellingPrice, 0),
+    [products],
   );
-  const totalProfit = useMemo(
-    () => sales.reduce((s, sale) => s + sale.profit, 0n),
-    [sales],
-  );
-  const totalUnits = useMemo(
-    () => sales.reduce((s, sale) => s + Number(sale.quantity), 0),
-    [sales],
-  );
+
+  const handleMoveToStock = async (id: bigint) => {
+    const key = String(id);
+    setTogglingIds((prev) => new Set(prev).add(key));
+    try {
+      await toggleStatus.mutateAsync(id);
+      toast.success("Product moved back to Stock!");
+    } catch {
+      toast.error("Failed to update status");
+    } finally {
+      setTogglingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    const key = String(deleteTarget.id);
+    setDeletingIds((prev) => new Set(prev).add(key));
+    try {
+      await deleteProduct.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
+      toast.success("Product deleted");
+    } catch {
+      toast.error("Failed to delete product");
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
 
   if (isLoading) {
     return (
       <div className="space-y-3" data-ocid="sold.loading_state">
         {SKELETON_IDS.map((id) => (
-          <Skeleton key={id} className="h-20 rounded-xl" />
+          <Skeleton key={id} className="h-24 rounded-2xl" />
         ))}
       </div>
     );
   }
 
-  if (sales.length === 0) {
-    return (
-      <div
-        data-ocid="sold.empty_state"
-        className="flex flex-col items-center justify-center py-20 text-center"
-      >
-        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mb-4">
-          <ShoppingBag className="w-7 h-7 text-muted-foreground" />
-        </div>
-        <p className="text-lg font-semibold text-foreground">No sales yet</p>
-        <p className="text-sm text-muted-foreground mt-1">
-          Sales will appear here once products are marked as sold.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex gap-6 items-start">
-      <div className="flex-1 min-w-0 space-y-3">
-        {[...sales].reverse().map((sale, i) => {
-          const productName =
-            productMap.get(String(sale.productId)) ??
-            `Product #${String(sale.productId)}`;
-          return (
+    <div>
+      {/* Summary bar */}
+      {products.length > 0 && (
+        <div className="mb-5 p-4 bg-card rounded-2xl border border-border shadow-xs flex flex-wrap gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              Total Sold
+            </p>
+            <p className="font-bold text-lg text-foreground">
+              {products.length}
+            </p>
+          </div>
+          <div className="w-px bg-border" />
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              Total Revenue
+            </p>
+            <p className="font-bold text-lg text-primary">
+              {formatRupees(totalRevenue)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="relative mb-5">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          data-ocid="sold.search_input"
+          placeholder="Search sold products…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9 rounded-xl bg-card border-border"
+        />
+      </div>
+
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div
+          data-ocid="sold.empty_state"
+          className="flex flex-col items-center justify-center py-24 text-center"
+        >
+          <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <ShoppingBag className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <p className="text-lg font-semibold text-foreground">
+            {search ? "No results found" : "No sold products yet"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {search
+              ? "Try a different search term"
+              : "Products marked as sold will appear here."}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((product, i) => (
             <motion.div
-              key={String(sale.id)}
-              initial={{ opacity: 0, y: 8 }}
+              key={String(product.id)}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03, duration: 0.3 }}
+              transition={{ delay: i * 0.04, duration: 0.3 }}
               data-ocid={`sold.item.${i + 1}`}
-              className="bg-card rounded-xl border border-border shadow-card p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              className="bg-card rounded-2xl border border-border shadow-card hover:shadow-card-hover transition-all duration-200 overflow-hidden flex flex-col"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <ShoppingBag className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground text-[15px]">
-                    {productName}
-                  </p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                    <Clock className="w-3 h-3" />
-                    {fmtDate(sale.timestamp)}
-                  </p>
+              {/* Image */}
+              <div className="relative w-full aspect-[4/3] bg-muted overflow-hidden">
+                {product.photoUrl ? (
+                  <img
+                    src={product.photoUrl}
+                    alt={product.name}
+                    className="w-full h-full object-cover opacity-75"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                    <ImageIcon className="w-8 h-8" />
+                  </div>
+                )}
+                <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-foreground/70 text-card">
+                  Sold
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                    Qty
-                  </p>
-                  <p className="font-bold text-sm text-foreground">
-                    {String(sale.quantity)}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                    Cost
-                  </p>
-                  <p className="font-bold text-sm text-foreground">
-                    {fmt(sale.costPrice)}
+              <div className="p-4 flex flex-col gap-3 flex-1">
+                <div>
+                  <h3 className="font-semibold text-foreground text-[15px] leading-snug line-clamp-2">
+                    {product.name}
+                  </h3>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3 h-3" />
+                    {formatDate(product.createdAt)}
                   </p>
                 </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                    Revenue
-                  </p>
-                  <p className="font-bold text-sm text-primary">
-                    {fmt(sale.totalPrice)}
-                  </p>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-muted/60 rounded-xl p-2.5">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                      Cost
+                    </p>
+                    <p className="font-bold text-sm text-foreground">
+                      {formatRupees(product.costPrice)}
+                    </p>
+                  </div>
+                  <div className="bg-muted/60 rounded-xl p-2.5">
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">
+                      Selling
+                    </p>
+                    <p className="font-bold text-sm text-foreground">
+                      {formatRupees(product.sellingPrice)}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                    Profit
-                  </p>
-                  <p
-                    className={`font-bold text-sm ${
-                      Number(sale.profit) >= 0
-                        ? "text-primary"
-                        : "text-low-stock"
-                    }`}
+
+                <div className="flex items-center justify-between mt-auto pt-1 border-t border-border">
+                  <button
+                    type="button"
+                    data-ocid={`sold.toggle.${i + 1}`}
+                    disabled={togglingIds.has(String(product.id))}
+                    onClick={() => handleMoveToStock(product.id)}
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
                   >
-                    {fmt(sale.profit)}
-                  </p>
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    {togglingIds.has(String(product.id))
+                      ? "Moving…"
+                      : "Move to Stock"}
+                  </button>
+                  <button
+                    type="button"
+                    data-ocid={`sold.delete_button.${i + 1}`}
+                    disabled={deletingIds.has(String(product.id))}
+                    onClick={() => setDeleteTarget(product)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             </motion.div>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <aside className="w-64 shrink-0 hidden lg:block">
-        <motion.div
-          initial={{ opacity: 0, x: 16 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-          className="bg-card rounded-xl border border-border shadow-card p-4 sticky top-24"
-        >
-          <h3 className="font-semibold text-foreground text-sm mb-3 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            Sales Summary
-          </h3>
-          <div className="space-y-0">
-            <div className="flex justify-between py-3 border-b border-border">
-              <span className="text-sm text-muted-foreground">Total Sales</span>
-              <span className="font-semibold text-sm">{sales.length}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b border-border">
-              <span className="text-sm text-muted-foreground">Units Sold</span>
-              <span className="font-semibold text-sm">{totalUnits}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b border-border">
-              <span className="text-sm text-muted-foreground">
-                Total Revenue
-              </span>
-              <span className="font-semibold text-sm text-primary">
-                {fmt(totalRevenue)}
-              </span>
-            </div>
-            <div className="flex justify-between py-3">
-              <span className="text-sm text-muted-foreground">
-                Total Profit
-              </span>
-              <span
-                className={`font-semibold text-sm ${
-                  Number(totalProfit) >= 0 ? "text-primary" : "text-low-stock"
-                }`}
-              >
-                {fmt(totalProfit)}
-              </span>
-            </div>
-          </div>
-        </motion.div>
-      </aside>
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => !v && setDeleteTarget(null)}
+        productName={deleteTarget?.name ?? ""}
+        onConfirm={handleDelete}
+        isPending={deleteProduct.isPending}
+      />
     </div>
   );
 }

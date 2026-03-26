@@ -10,7 +10,11 @@ import { ProfileSetupModal } from "./components/ProfileSetupModal";
 import { SoldTab } from "./components/SoldTab";
 import { StockTab } from "./components/StockTab";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
-import { useGetCallerUserProfile } from "./hooks/useQueries";
+import {
+  useGetCallerUserProfile,
+  useGetSoldProducts,
+  useGetStockProducts,
+} from "./hooks/useQueries";
 
 const queryClient = new QueryClient();
 
@@ -21,7 +25,10 @@ function AppContent() {
     data: userProfile,
     isLoading: profileLoading,
     isFetched,
+    isError,
   } = useGetCallerUserProfile();
+  const { data: stockProducts = [] } = useGetStockProducts();
+  const { data: soldProducts = [] } = useGetSoldProducts();
   const [activeTab, setActiveTab] = useState<"stock" | "sold">("stock");
 
   if (isInitializing) {
@@ -37,7 +44,11 @@ function AppContent() {
   }
 
   const showProfileSetup =
-    isAuthenticated && !profileLoading && isFetched && userProfile === null;
+    isAuthenticated &&
+    !profileLoading &&
+    isFetched &&
+    !isError &&
+    userProfile === null;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -45,9 +56,9 @@ function AppContent() {
       <ProfileSetupModal open={showProfileSetup} />
 
       {/* Sub-navigation */}
-      <div className="bg-accent/40 border-b border-border sticky top-16 z-30">
+      <div className="bg-accent/60 border-b border-border sticky top-16 z-30">
         <div className="container mx-auto px-6">
-          <div className="flex gap-1 py-3">
+          <div className="flex gap-1 py-2">
             <button
               type="button"
               data-ocid="nav.tab"
@@ -59,8 +70,18 @@ function AppContent() {
               }`}
             >
               <Package className="w-4 h-4" />
-              STOCK
+              Stock
+              <span
+                className={`ml-0.5 text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === "stock"
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {stockProducts.length}
+              </span>
             </button>
+
             <button
               type="button"
               data-ocid="nav.tab"
@@ -72,7 +93,16 @@ function AppContent() {
               }`}
             >
               <ShoppingBag className="w-4 h-4" />
-              SOLD
+              Sold
+              <span
+                className={`ml-0.5 text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                  activeTab === "sold"
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {soldProducts.length}
+              </span>
             </button>
           </div>
         </div>
@@ -84,11 +114,18 @@ function AppContent() {
             key={activeTab}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.25 }}
           >
-            <h2 className="font-display text-2xl font-semibold text-foreground mb-6">
-              {activeTab === "stock" ? "Active Stock" : "Sales History"}
-            </h2>
+            <div className="mb-6">
+              <h2 className="font-display text-2xl font-semibold text-foreground">
+                {activeTab === "stock" ? "Stock" : "Sold Products"}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {activeTab === "stock"
+                  ? "Manage your current inventory"
+                  : "All products that have been sold"}
+              </p>
+            </div>
             {activeTab === "stock" ? <StockTab /> : <SoldTab />}
           </motion.div>
         </div>
